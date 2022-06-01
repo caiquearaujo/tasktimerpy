@@ -1,9 +1,8 @@
 from asyncio import Task
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Union
+from typing import List, Union
 from pypika import Query, Table
-from slugify import slugify
 import sqlite3
 from models.epic import Epic
 
@@ -44,8 +43,8 @@ class Database:
         t = Table("projects")
         q = (
             Query.into(t)
-            .columns(t.name, t.slug, t.created_at)
-            .insert(r.name(), r.slug(), r.createdAt())
+            .columns(t.name, t.created_at)
+            .insert(r.name(), r.createdAt())
         )
         i = self.__commit(str(q))
 
@@ -63,8 +62,8 @@ class Database:
         t = Table("epics")
         q = (
             Query.into(t)
-            .columns(t.project_id, t.name, t.slug, t.created_at)
-            .insert(r.project().id(), r.name(), r.slug(), r.createdAt())
+            .columns(t.project_id, t.name, t.created_at)
+            .insert(r.project().id(), r.name(), r.createdAt())
         )
         i = self.__commit(str(q))
 
@@ -80,14 +79,11 @@ class Database:
         t = Table("stories")
         q = (
             Query.into(t)
-            .columns(
-                t.project_id, t.epic_id, t.name, t.slug, t.created_at
-            )
+            .columns(t.project_id, t.epic_id, t.name, t.created_at)
             .insert(
                 r.project().id(),
                 r.epic().id(),
                 r.name(),
-                r.slug(),
                 r.createdAt(),
             )
         )
@@ -110,7 +106,6 @@ class Database:
                 t.epic_id,
                 t.story_id,
                 t.name,
-                t.slug,
                 t.created_at,
             )
             .insert(
@@ -118,7 +113,6 @@ class Database:
                 r.epic().id(),
                 r.story().id(),
                 r.name(),
-                r.slug(),
                 r.createdAt(),
             )
         )
@@ -176,6 +170,106 @@ class Database:
         o.assignTo(self.getStory(r.story_id or -1))
         return o
 
+    def getUndoneProjects(self) -> Union[List[Project], None]:
+        t, i = Table("projects", "tasks")
+        q = (
+            Query.from_(t)
+            .join(i)
+            .on(t.project_id == i.project_id)
+            .select(t.project_id, t.name, t.created_at)
+            .where(i.done == 0)
+            .orderby(i.created_at)
+            .limit(15)
+        )
+        r = self.__all(str(q))
+
+        if r is None:
+            return None
+
+        projects = []
+
+        for i in r:
+            projects.append(Project(r))
+
+        return projects
+
+    def getUndoneEpics(self, project: Project) -> Union[List[Epic], None]:
+        t, i = Table("epics", "tasks")
+        q = (
+            Query.from_(t)
+            .join(i)
+            .on(t.epic_id == i.epic_id)
+            .select(t.epic_id, t.project_id, t.name, t.created_at)
+            .where(i.project_id == project.id())
+            .where(i.done == 0)
+            .orderby(i.created_at)
+            .limit(15)
+        )
+        r = self.__all(str(q))
+
+        if r is None:
+            return None
+
+        epics = []
+
+        for i in r:
+            o = Epic(r)
+            o.assignTo(self.getProject(r.project_id or -1))
+            epics.append(o)
+
+        return epics
+
+    def getUndoneStories(self, epic: Epic) -> Union[List[Story], None]:
+        t, i = Table("stories", "tasks")
+        q = (
+            Query.from_(t)
+            .join(i)
+            .on(t.story_id == i.story_id)
+            .select(
+                t.story_id, t.project_id, t.epic_id, t.name, t.created_at
+            )
+            .where(i.epic_id == epic.id())
+            .where(i.done == 0)
+            .orderby(i.created_at)
+            .limit(15)
+        )
+        r = self.__all(str(q))
+
+        if r is None:
+            return None
+
+        stories = []
+
+        for i in r:
+            o = Story(r)
+            o.assignTo(self.getEpic(r.epic_id or -1))
+            stories.append(o)
+
+        return stories
+
+    def getUndoneTasks(self) -> Union[List[Task], None]:
+        t = Table("tasks")
+        q = (
+            Query.from_(t)
+            .select("*")
+            .where(t.done == 0)
+            .orderby(t.created_at)
+            .limit(15)
+        )
+        r = self.__all(str(q))
+
+        if r is None:
+            return None
+
+        tasks = []
+
+        for i in r:
+            o = Task(r)
+            o.assignTo(self.getStory(r.story_id or -1))
+            tasks.append(o)
+
+        return tasks
+
     def getTimer(self, id: int) -> Union[Task, None]:
         t = Table("timers")
         q = Query.from_(t).select("*").where(t.task_id == id)
@@ -187,6 +281,21 @@ class Database:
         o = Timer(r)
         o.assignTo(self.getTask(r.task_id or -1))
         return o
+
+    def taskDone(self, r: Task) -> Task:
+        if r.hasId() == False:
+            raise sqlite3.Error(Exception("You must create task first"))
+
+        r.done()
+
+        t = Table("tasks")
+        q = (
+            Query.update(t)
+            .set(t.done, r.done())
+            .where(t.task_id == r.id())
+        )
+        self.__commit(str(q))
+        return r
 
     def timerOpen(self, r: Timer) -> Union[Timer, None]:
         if r.task() is None or r.task().hasId() == False:
@@ -333,6 +442,19 @@ class Database:
             self.last_err = e
             return None
 
+    def __all(self, query: str) -> Union[list, None]:
+        self.last_err = None
+
+        try:
+            c = self.conn.cursor()
+            c.execute(query)
+            columns = [col[0] for col in c.description]
+            rows = [dict(zip(columns, row)) for row in c.fetchall()]
+            return rows
+        except sqlite3.Error as e:
+            self.last_err = e
+            return None
+
     def __commit(self, query: str) -> Union[int, None]:
         self.last_err = None
 
@@ -353,7 +475,6 @@ class Database:
 		CREATE TABLE IF NOT EXISTS projects (
 			project_id integer PRIMARY KEY,
 			name text NOT NULL,
-			slug text NULL,
 			created_at integer NOT NULL
 		);"""
 
@@ -362,7 +483,6 @@ class Database:
 			epic_id integer PRIMARY KEY,
 			project_id integer NOT NULL,
 			name text NOT NULL,
-			slug text NULL,
 			created_at integer NOT NULL,
 			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE
 		);"""
@@ -373,7 +493,6 @@ class Database:
 			project_id integer NOT NULL,
 			epic_id integer NOT NULL,
 			name text NOT NULL,
-			slug text NULL,
 			created_at integer NOT NULL,
 			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
 			FOREIGN KEY (epic_id) REFERENCES epics (epic_id) ON DELETE CASCADE
@@ -385,8 +504,8 @@ class Database:
 			project_id integer NOT NULL,
 			epic_id integer NOT NULL,
 			story_id integer NOT NULL,
+			done integer NOT NULL DEFAULT 0,
 			name text NOT NULL,
-			slug text NULL,
 			created_at integer NOT NULL,
 			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
 			FOREIGN KEY (epic_id) REFERENCES epics (epic_id) ON DELETE CASCADE,

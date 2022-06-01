@@ -26,6 +26,9 @@ class Timer(Record):
         self.__epic = task.epic()
         self.__project = task.project()
 
+    def task(self):
+        return self.task()
+
     def close(self):
         self.__ends_at = int(datetime.now().timestamp())
 
