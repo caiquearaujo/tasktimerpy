@@ -1,6 +1,6 @@
-from models.namedrecord import NamedRecord
+from .namedrecord import NamedRecord
 
 
 class Project(NamedRecord):
-    def primaryKey() -> str:
+    def primaryKey(self) -> str:
         return "project_id"

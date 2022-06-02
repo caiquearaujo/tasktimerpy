@@ -1,5 +1,5 @@
 from typing import Union
-from models.story import Story
+from .story import Story
 
 
 class Task(Story):
@@ -18,5 +18,5 @@ class Task(Story):
     def story(self) -> Union[Story, None]:
         return self.__story
 
-    def primaryKey() -> str:
+    def primaryKey(self) -> str:
         return "task_id"

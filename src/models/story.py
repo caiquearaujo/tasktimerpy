@@ -1,5 +1,5 @@
 from typing import Union
-from models.epic import Epic
+from .epic import Epic
 
 
 class Story(Epic):
@@ -14,5 +14,5 @@ class Story(Epic):
     def epic(self) -> Union[Epic, None]:
         return self.__epic
 
-    def primaryKey() -> str:
+    def primaryKey(self) -> str:
         return "story_id"

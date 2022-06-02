@@ -1,6 +1,9 @@
+import gettext
 from typing import Union
 from datetime import datetime
-from models.record import Record
+from .record import Record
+
+_ = gettext.gettext
 
 
 class NamedRecord(Record):
@@ -8,7 +11,7 @@ class NamedRecord(Record):
         super().__init__(record)
 
         if "name" not in record:
-            raise Exception("Name must be set")
+            raise Exception(_("Name must be set"))
 
         self.__name = record.get("name")
         self.__created_at = record.get(

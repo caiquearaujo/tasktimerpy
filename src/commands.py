@@ -14,8 +14,8 @@ _ = gettext.gettext
 
 
 class Commands:
-    def __init__(self, path: str, db_name: str = "tasktimerpy") -> None:
-        self.db = Database(path, db_name)
+    def __init__(self, db: Database) -> None:
+        self.db = db
 
     def start(self):
         try:
@@ -83,7 +83,9 @@ class Commands:
         timer = self.db.timerOpen(Timer().assignTo(task))
 
         if timer is None:
-            Terminal.err(self.db, _("Error"), "Cannot open timer to task...")
+            Terminal.err(
+                self.db, _("Error"), "Cannot open timer to task..."
+            )
 
         return timer
 

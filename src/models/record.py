@@ -10,3 +10,6 @@ class Record:
 
     def hasId(self):
         return self.__id is not None
+
+    def primaryKey(self) -> str:
+        pass

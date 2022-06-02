@@ -1,6 +1,6 @@
 from typing import Union
-from models.namedrecord import NamedRecord
-from models.project import Project
+from .namedrecord import NamedRecord
+from .project import Project
 
 
 class Epic(NamedRecord):
@@ -14,5 +14,5 @@ class Epic(NamedRecord):
     def project(self) -> Union[Project, None]:
         return self.__project
 
-    def primaryKey() -> str:
+    def primaryKey(self) -> str:
         return "epic_id"

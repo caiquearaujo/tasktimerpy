@@ -1,7 +1,7 @@
 from typing import Union
 from datetime import datetime
-from models.record import Record
-from models.task import Task
+from .record import Record
+from .task import Task
 
 
 class Timer(Record):
@@ -41,5 +41,5 @@ class Timer(Record):
     def createdAt(self) -> int:
         return self.__created_at
 
-    def primaryKey() -> str:
+    def primaryKey(self) -> str:
         return "timer_id"
