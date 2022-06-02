@@ -1,14 +1,16 @@
-from asyncio import Task
-from datetime import datetime
+import gettext
 from pathlib import Path, PurePath
 from typing import List, Union
-from pypika import Query, Table
+from pypika import Query, Table, JoinType
 import sqlite3
-from models.epic import Epic
 
-from models.project import Project
-from models.story import Story
-from models.timer import Timer
+from .models.epic import Epic
+from .models.project import Project
+from .models.story import Story
+from .models.task import Task
+from .models.timer import Timer
+
+_ = gettext.gettext
 
 
 class Database:
@@ -33,7 +35,7 @@ class Database:
             self.__create(self.conn)
         except sqlite3.Error as e:
             self.conn.rollback()
-            print(e)
+            raise e
 
     def close(self):
         if self.conn != None:
@@ -96,9 +98,11 @@ class Database:
 
     def createTask(self, r: Task) -> Union[Task, None]:
         if r.story() is None or r.story().hasId() == False:
-            raise sqlite3.Error(Exception("You must create story first"))
+            raise sqlite3.Error(
+                Exception(_("You must create story first"))
+            )
 
-        t = Table("task")
+        t = Table("tasks")
         q = (
             Query.into(t)
             .columns(
@@ -143,7 +147,7 @@ class Database:
             return None
 
         o = Epic(r)
-        o.assignTo(self.getProject(r.project_id or -1))
+        o.assignTo(self.getProject(r.get("project_id", -1)))
         return o
 
     def getStory(self, id: int) -> Union[Story, None]:
@@ -155,7 +159,7 @@ class Database:
             return None
 
         o = Story(r)
-        o.assignTo(self.getEpic(r.epic_id or -1))
+        o.assignTo(self.getEpic(r.get("epic_id", -1)))
         return o
 
     def getTask(self, id: int) -> Union[Task, None]:
@@ -167,18 +171,20 @@ class Database:
             return None
 
         o = Task(r)
-        o.assignTo(self.getStory(r.story_id or -1))
+        o.assignTo(self.getStory(r.get("story_id", -1)))
         return o
 
     def getUndoneProjects(self) -> Union[List[Project], None]:
-        t, i = Table("projects", "tasks")
+        t = Table("projects")
+        i = Table("tasks")
         q = (
             Query.from_(t)
-            .join(i)
+            .join(i, JoinType.left)
             .on(t.project_id == i.project_id)
             .select(t.project_id, t.name, t.created_at)
-            .where(i.done == 0)
+            .where((i.done == 0) | (i.done.isnull()))
             .orderby(i.created_at)
+            .groupby(t.project_id)
             .limit(15)
         )
         r = self.__all(str(q))
@@ -189,20 +195,24 @@ class Database:
         projects = []
 
         for i in r:
-            projects.append(Project(r))
+            projects.append(Project(i))
 
         return projects
 
     def getUndoneEpics(self, project: Project) -> Union[List[Epic], None]:
-        t, i = Table("epics", "tasks")
+        t = Table("epics")
+        i = Table("tasks")
         q = (
             Query.from_(t)
-            .join(i)
+            .join(i, JoinType.left)
             .on(t.epic_id == i.epic_id)
             .select(t.epic_id, t.project_id, t.name, t.created_at)
-            .where(i.project_id == project.id())
-            .where(i.done == 0)
+            .where(
+                (i.project_id == project.id()) | (i.project_id.isnull())
+            )
+            .where((i.done == 0) | (i.done.isnull()))
             .orderby(i.created_at)
+            .groupby(t.epic_id)
             .limit(15)
         )
         r = self.__all(str(q))
@@ -213,24 +223,26 @@ class Database:
         epics = []
 
         for i in r:
-            o = Epic(r)
-            o.assignTo(self.getProject(r.project_id or -1))
+            o = Epic(i)
+            o.assignTo(self.getProject(i.get("project_id", -1)))
             epics.append(o)
 
         return epics
 
     def getUndoneStories(self, epic: Epic) -> Union[List[Story], None]:
-        t, i = Table("stories", "tasks")
+        t = Table("stories")
+        i = Table("tasks")
         q = (
             Query.from_(t)
-            .join(i)
+            .join(i, JoinType.left)
             .on(t.story_id == i.story_id)
             .select(
                 t.story_id, t.project_id, t.epic_id, t.name, t.created_at
             )
-            .where(i.epic_id == epic.id())
-            .where(i.done == 0)
+            .where((i.epic_id == epic.id()) | (i.epic_id.isnull()))
+            .where((i.done == 0) | (i.done.isnull()))
             .orderby(i.created_at)
+            .groupby(t.story_id)
             .limit(15)
         )
         r = self.__all(str(q))
@@ -241,8 +253,8 @@ class Database:
         stories = []
 
         for i in r:
-            o = Story(r)
-            o.assignTo(self.getEpic(r.epic_id or -1))
+            o = Story(i)
+            o.assignTo(self.getEpic(i.get("epic_id", -1)))
             stories.append(o)
 
         return stories
@@ -264,8 +276,8 @@ class Database:
         tasks = []
 
         for i in r:
-            o = Task(r)
-            o.assignTo(self.getStory(r.story_id or -1))
+            o = Task(i)
+            o.assignTo(self.getStory(i.get("story_id", -1)))
             tasks.append(o)
 
         return tasks
@@ -279,27 +291,36 @@ class Database:
             return None
 
         o = Timer(r)
-        o.assignTo(self.getTask(r.task_id or -1))
+        o.assignTo(self.getTask(r.get("task_id", -1)))
         return o
 
     def taskDone(self, r: Task) -> Task:
         if r.hasId() == False:
             raise sqlite3.Error(Exception("You must create task first"))
 
+        r = self.getTask(r.id())
+
+        if r is None:
+            raise sqlite3.Error(Exception("Task does not exists"))
+
         r.done()
 
         t = Table("tasks")
-        q = (
-            Query.update(t)
-            .set(t.done, r.done())
-            .where(t.task_id == r.id())
-        )
+        q = Query.update(t).set(t.done, 1).where(t.task_id == r.id())
         self.__commit(str(q))
         return r
 
-    def timerOpen(self, r: Timer) -> Union[Timer, None]:
-        if r.task() is None or r.task().hasId() == False:
+    def timerOpen(self, r: Task) -> Union[Timer, None]:
+        if r.hasId() == False:
             raise sqlite3.Error(Exception("You must create task first"))
+
+        r = self.getTask(r.id())
+
+        if r is None:
+            raise sqlite3.Error(Exception("Task does not exists"))
+
+        x = Timer()
+        x.assignTo(r)
 
         t = Table("timers")
         q = (
@@ -313,12 +334,12 @@ class Database:
                 t.created_at,
             )
             .insert(
-                r.project().id(),
-                r.epic().id(),
-                r.story().id(),
-                r.task().id(),
-                r.startsAt(),
-                r.createdAt(),
+                x.project().id(),
+                x.epic().id(),
+                x.story().id(),
+                x.task().id(),
+                x.startsAt(),
+                x.createdAt(),
             )
         )
         i = self.__commit(str(q))
@@ -331,6 +352,11 @@ class Database:
     def timerClose(self, r: Timer) -> Timer:
         if r.hasId() == False:
             raise sqlite3.Error(Exception("You must start timer first"))
+
+        r = self.getTimer(r.id())
+
+        if r is None:
+            raise sqlite3.Error(Exception("Timer does not exists"))
 
         r.close()
 
@@ -345,89 +371,15 @@ class Database:
 
     def timerActive(self) -> Union[Timer, None]:
         t = Table("timers")
-        q = Query.from_(t).select("*").where(t.ends_at.null())
+        q = Query.from_(t).select("*").where(t.ends_at.isnull())
         r = self.__one(str(q))
 
         if r is None:
             return None
 
         o = Timer(r)
-        o.assignTo(self.getTask(r.task_id or -1))
+        o.assignTo(self.getTask(r.get("task_id", -1)))
         return o
-
-    def existsProject(self, id: int) -> int:
-        if (
-            self.__exists("projects", "project_id", "project_id", id)
-            == False
-        ):
-            raise sqlite3.Error(
-                Exception(
-                    "Cannot find project by project_id {id}".format(id=id)
-                )
-            )
-
-        return id
-
-    def existsEpic(self, id: int) -> int:
-        if self.__exists("epics", "epic_id", "epic_id", id) == False:
-            raise sqlite3.Error(
-                Exception(
-                    "Cannot find epic by epic_id {id}".format(id=id)
-                )
-            )
-
-        return id
-
-    def existsStory(self, id: int) -> int:
-        if self.__exists("stories", "story_id", "story_id", id) == False:
-            raise sqlite3.Error(
-                Exception(
-                    "Cannot find story by story_id {id}".format(id=id)
-                )
-            )
-
-        return id
-
-    def existsTask(self, id: int) -> int:
-        if self.__exists("tasks", "task_id", "task_id", id) == False:
-            raise sqlite3.Error(
-                Exception(
-                    "Cannot find task by task_id {id}".format(id=id)
-                )
-            )
-
-        return id
-
-    def existstimer(self, id: int) -> int:
-        if self.__exists("timers", "timer_id", "timer_id", id) == False:
-            raise sqlite3.Error(
-                Exception(
-                    "Cannot find timer by timer_id {id}".format(id=id)
-                )
-            )
-
-        return id
-
-    def __exists(
-        self, table: str, pk: str, column: str, value: str
-    ) -> bool:
-        self.last_err = None
-
-        try:
-            r = self.conn.cursor().execute(
-                "SELECT * FROM {t} WHERE {c} = '{v}'".format(
-                    pk=pk, t=table, c=column, v=value
-                )
-            )
-
-            if r.fetchone():
-                return True
-
-            return False
-        except sqlite3.Error as e:
-            self.conn.rollback()
-            self.last_err = e
-            return False
 
     def __one(self, query: str) -> Union[dict, None]:
         self.last_err = None
@@ -439,6 +391,9 @@ class Database:
             values = c.fetchone()
             return dict(zip(fields, values))
         except sqlite3.Error as e:
+            self.last_err = e
+            return None
+        except TypeError as e:
             self.last_err = e
             return None
 
@@ -454,6 +409,9 @@ class Database:
         except sqlite3.Error as e:
             self.last_err = e
             return None
+        except TypeError as e:
+            self.last_err = e
+            return None
 
     def __commit(self, query: str) -> Union[int, None]:
         self.last_err = None
@@ -461,6 +419,7 @@ class Database:
         try:
             c = self.conn.cursor()
             c.execute(query)
+            self.conn.commit()
             return c.lastrowid
         except sqlite3.Error as e:
             self.conn.rollback()

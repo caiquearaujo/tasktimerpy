@@ -47,6 +47,9 @@ class Timer(Record):
     def endsAt(self) -> Union[int, None]:
         return self.__ends_at
 
+    def isDone(self) -> bool:
+        return self.__ends_at != None
+
     def createdAt(self) -> int:
         return self.__created_at
 
