@@ -30,3 +30,8 @@ def test_project_has_not_id():
 def test_project_has_id():
     obj = Project({"name": "Project One", "project_id": 1})
     assert obj.hasId() == True
+
+
+def test_project_valid_primary_key():
+    s = Project({"name": "Project One"})
+    assert s.primaryKey() == "project_id"
