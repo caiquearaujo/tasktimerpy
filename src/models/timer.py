@@ -5,7 +5,7 @@ from .task import Task
 
 
 class Timer(Record):
-    def __init__(self, record: dict):
+    def __init__(self, record: dict = {}):
         super().__init__(record)
         self.__project = None
         self.__epic = None
@@ -26,8 +26,17 @@ class Timer(Record):
         self.__epic = task.epic()
         self.__project = task.project()
 
+    def project(self):
+        return self.__project
+
+    def epic(self):
+        return self.__epic
+
+    def story(self):
+        return self.__story
+
     def task(self):
-        return self.task()
+        return self.__task
 
     def close(self):
         self.__ends_at = int(datetime.now().timestamp())

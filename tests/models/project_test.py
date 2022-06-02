@@ -1,3 +1,4 @@
+from datetime import datetime
 import pytest
 from src.models.project import Project
 
@@ -30,6 +31,12 @@ def test_project_has_not_id():
 def test_project_has_id():
     obj = Project({"name": "Project One", "project_id": 1})
     assert obj.hasId() == True
+
+
+def test_timer_custom_created_at():
+    now = int(datetime.now().timestamp()) - 10
+    p = Project({"name": "Project One", "created_at": now})
+    assert p.createdAt() == now
 
 
 def test_project_valid_primary_key():
