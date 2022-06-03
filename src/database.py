@@ -237,6 +237,7 @@ class Database:
         """
         Create tables if them does not exist.
         """
+
         tasks = """
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id integer PRIMARY KEY,

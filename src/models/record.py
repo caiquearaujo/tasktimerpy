@@ -2,7 +2,11 @@ from typing import Union
 from datetime import datetime
 
 
-class Record:
+class Record(object):
+    def __init__(self):
+        self.__id = None
+        self.__created_at = None
+
     def apply(self, record: dict):
         self.__id = record.get(self.primaryKey(), None)
         self.__created_at = record.get(
@@ -19,4 +23,7 @@ class Record:
         return self.__created_at
 
     def primaryKey(self) -> str:
+        pass
+
+    def toDict(self) -> dict:
         pass

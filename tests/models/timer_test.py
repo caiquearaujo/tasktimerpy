@@ -1,93 +1,83 @@
 from datetime import datetime
 
-from src.models.project import Project
-from src.models.epic import Epic
-from src.models.story import Story
 from src.models.task import Task
 from src.models.timer import Timer
 
 
-def test_timer_with_task():
-    p = Project({"name": "Project One"})
-    e = Epic({"name": "Epic One"})
-    e.assignTo(p)
-    s = Story({"name": "Story One"})
-    s.assignTo(e)
-    t = Task({"name": "Task One"})
-    t.assignTo(s)
-    tt = Timer()
-    tt.assignTo(t)
-    assert tt.task() == t
-
-
-def test_timer_same_project_of_task():
-    p = Project({"name": "Project One"})
-    e = Epic({"name": "Epic One"})
-    e.assignTo(p)
-    s = Story({"name": "Story One"})
-    s.assignTo(e)
-    t = Task({"name": "Task One"})
-    t.assignTo(s)
-    tt = Timer()
-    tt.assignTo(t)
-    assert tt.project() == p
-
-
-def test_timer_same_epic_of_task():
-    p = Project({"name": "Project One"})
-    e = Epic({"name": "Epic One"})
-    e.assignTo(p)
-    s = Story({"name": "Story One"})
-    s.assignTo(e)
-    t = Task({"name": "Task One"})
-    t.assignTo(s)
-    tt = Timer()
-    tt.assignTo(t)
-    assert tt.epic() == e
-
-
-def test_timer_same_story_of_task():
-    p = Project({"name": "Project One"})
-    e = Epic({"name": "Epic One"})
-    e.assignTo(p)
-    s = Story({"name": "Story One"})
-    s.assignTo(e)
-    t = Task({"name": "Task One"})
-    t.assignTo(s)
-    tt = Timer()
-    tt.assignTo(t)
-    assert tt.story() == s
-
-
-def test_timer_custom_starts_at():
-    now = int(datetime.now().timestamp()) - 10
-    t = Timer({"starts_at": now})
-    assert t.startsAt() == now
-
-
-def test_timer_custom_created_at():
-    now = int(datetime.now().timestamp()) - 10
-    t = Timer({"created_at": now})
-    assert t.createdAt() == now
-
-
-def test_timer_custom_ends_at():
-    now = int(datetime.now().timestamp()) - 10
-    t = Timer({"ends_at": now})
-    assert t.endsAt() == now
-
-
-def test_timer_empty_ends_at():
+def test_create_timer():
     t = Timer()
-    assert t.endsAt() == None
+    assert t.toDict() == {
+        "id": None,
+        "task": None,
+        "startsAt": t.startsAt(),
+        "endsAt": None,
+        "createdAt": t.createdAt(),
+    }
 
 
-def test_timer_can_be_closed():
+def test_assign_task_to_timer():
+    t = Task("project-one", "Task One")
+    tt = Timer()
+    tt.assignTo(t)
+    assert tt.toDict() == {
+        "id": None,
+        "task": t.toDict(),
+        "startsAt": tt.startsAt(),
+        "endsAt": None,
+        "createdAt": tt.createdAt(),
+    }
+
+
+def test_getters_of_timer_without_task():
     t = Timer()
-    t.close()
-    assert t.endsAt() is not None
+    assert t.project() is None and t.epic() is None and t.story() is None
+
+
+def test_getters_of_timer_with_task():
+    t = (
+        Task("project-one", "Task One")
+        .changeEpic("epic-one")
+        .changeStory("story-one")
+    )
+    tt = Timer().assignTo(t)
+    assert (
+        tt.project() == "project-one"
+        and tt.epic() == "epic-one"
+        and tt.story() == "story-one"
+    )
+
+
+def test_can_close_timer():
+    t = (
+        Task("project-one", "Task One")
+        .changeEpic("epic-one")
+        .changeStory("story-one")
+    )
+    tt = Timer().assignTo(t).close()
+    assert tt.endsAt() is not None
+
+
+def test_applying_record_to_timer():
+    n = int(datetime.now().timestamp())
+    tt = Timer()
+    r = {
+        "timer_id": 1,
+        "task_id": 1,
+        "starts_at": n,
+        "ends_at": None,
+        "created_at": n,
+    }
+
+    tt.apply(r)
+    assert tt.toDict() == {
+        "id": 1,
+        "task": None,
+        "startsAt": n,
+        "endsAt": None,
+        "createdAt": n,
+    }
 
 
 def test_timer_valid_primary_key():
-    s = Timer()
-    assert s.primaryKey() == "timer_id"
+    s = Task("project-one", "Task One")
+    assert s.primaryKey() == "task_id"
