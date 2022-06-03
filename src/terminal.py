@@ -8,34 +8,23 @@ _ = gettext.gettext
 
 
 class Terminal:
-    @staticmethod
-    def askOption(title: str, options: dict):
+    def __init__(self, db: Database):
+        self.db = db
+
+    def askOption(self, title: str, options: dict):
         option = -1
-        print()
 
         while option < 0:
-            Terminal.printWorking(title)
-            print()
+            self.notice(title)
 
             for key, value in options.items():
-                print(
-                    colorama.Fore.YELLOW,
-                    "[",
-                    key,
-                    "]",
-                    colorama.Fore.RESET,
-                    "\t",
-                    value,
-                )
+                print(self.formatOption(key, value))
 
             try:
                 print()
 
                 option = input(
-                    _("[*] Choose an option")
-                    + colorama.Fore.GREEN
-                    + " > "
-                    + colorama.Fore.RESET
+                    self.formatQuestion("Choose an option", required=True)
                 )
 
                 if option == "q":
@@ -51,33 +40,16 @@ class Terminal:
             except:
                 option = -1
 
-    @staticmethod
     def askInput(
+        self,
         question: str,
         max: int = -1,
         required: bool = True,
         default: str = None,
     ):
         while True:
-            message = question
-
-            if required:
-                message = "[*] " + message
-
-            if default:
-                message += (
-                    colorama.Fore.YELLOW
-                    + " ["
-                    + default
-                    + "]"
-                    + colorama.Fore.RESET
-                )
-
             response = input(
-                message
-                + colorama.Fore.GREEN
-                + " > "
-                + colorama.Fore.RESET
+                self.formatQuestion(question, required, default)
             )
 
             if max < 0:
@@ -90,13 +62,13 @@ class Terminal:
                 if len(response) != 0 and len(response) <= max:
                     return response
 
-                Terminal.printErr(
+                self.error(
                     _("Unexpected value"),
                     _("You must to provide an answer..."),
                 )
 
                 if len(response) > max:
-                    Terminal.printErr(
+                    self.error(
                         _("Unexpected value"),
                         _("Characters limit of {m} reached...\n").format(
                             m=max
@@ -108,85 +80,24 @@ class Terminal:
 
                 return response or ""
 
-    @staticmethod
-    def askInputAsInt(
-        question: str,
-        max: int = -1,
-        required: bool = True,
-        default: int = None,
-    ):
-        while True:
-            message = question
-
-            if default:
-                message += (
-                    colorama.Fore.YELLOW
-                    + " ["
-                    + default
-                    + "]"
-                    + colorama.Fore.RESET
-                )
-
-            print(message)
-            response = input()
-
-            if max < 0:
-                max = len(response)
-
-            if required:
-                if len(response) == 0 and default != None:
-                    return default
-
-                if len(response) != 0 and len(response) <= max:
-                    try:
-                        return int(response)
-                    except ValueError:
-                        Terminal.printErr(
-                            _("Unexpected value"),
-                            _("You must to provide an integer value..."),
-                        )
-
-                        continue
-
-                Terminal.printErr(
-                    _("Unexpected value"),
-                    _("You must to provide an answer..."),
-                )
-
-                if len(response) > max:
-                    Terminal.printErr(
-                        _("Unexpected value"),
-                        _("Characters limit of {m} reached...\n").format(
-                            m=max
-                        ),
-                    )
-            else:
-                if default != None:
-                    return default
-
-                return ""
-
-    @staticmethod
-    def askYN(question: str, default: str = "yes"):
+    def askYN(self, question: str, default: str = "yes"):
         valid = {"yes": True, "y": True, "no": False, "n": False}
 
         if default is None:
-            prompt = " [y/n] "
+            prompt = "y/n"
         elif default == "yes":
-            prompt = " [Y/n] "
+            prompt = "Y/n"
         elif default == "no":
-            prompt = " [y/N] "
+            prompt = "y/N"
         else:
             default = "yes"
-            prompt = " [Y/n] "
+            prompt = "Y/n"
 
         while True:
             choice = input(
-                question
-                + prompt
-                + colorama.Fore.GREEN
-                + "> "
-                + colorama.Fore.RESET
+                self.formatQuestion(
+                    question, required=True, default=prompt
+                )
             ).lower()
 
             if default is not None and choice == "":
@@ -194,72 +105,94 @@ class Terminal:
             elif choice in valid:
                 return valid[choice]
             else:
-                Terminal.printErr(
+                self.error(
                     _("Unexpected value"),
                     _(
                         "Please, you must to provide a valid answer: `y`, `n`, `yes` ou `no`."
                     ),
                 )
 
-    @staticmethod
-    def shouldContinue():
-        _continue = Terminal.askYN(_("Do you want to continue?"))
+    def shouldContinue(
+        self,
+    ):
+        _continue = self.askYN(_("Do you want to continue?"))
 
         if _continue == False:
-            Terminal.success(_("Operation aborted successfully..."))
+            self.exitWithSuccess(_("Operation aborted successfully..."))
 
-    @staticmethod
-    def err(db: Database, err="Error", message=None):
-        """Exibe uma mensagem de error e encerra o programa."""
-        Terminal.printErr(err, message)
-        db.close()
-        sys.exit(2)
-
-    @staticmethod
-    def success(db: Database, message=None):
-        """Exibe uma mensagem de sucesso e encerra o programa."""
-        Terminal.printSuccess(
-            "\n\n" + (message or _("Everything is done..."))
-        )
-        db.close()
-        sys.exit()
-
-    @staticmethod
-    def printErr(err="Error", message=None):
+    def error(self, error: str = "Error", message: str = None):
         print(
-            colorama.Back.RED
-            + err
-            + " >"
-            + colorama.Back.RESET
-            + colorama.Fore.RED
+            self.applyInvertRed(error + " >")
             + " "
-            + (message or _("Something went wrong..."))
-            + colorama.Fore.RESET
+            + self.applyRed((message or _("Something went wrong...")))
         )
 
-    @staticmethod
-    def printTitle(message: str):
-        print(
+    def notice(self, message: str):
+        print(self.applyYellow(message))
+
+    def success(self, message: str = None):
+        print(self.applyGreen((message or _("Everything is done..."))))
+
+    def title(self, title: str):
+        print(self.applyInvertYellow(title))
+        print()
+
+    def formatOption(self, key: str, value: str) -> str:
+        return self.applyYellow("[" + str(key) + "]") + "\t" + value
+
+    def formatQuestion(
+        self, question: str, required=True, default=None
+    ) -> str:
+        message = ""
+
+        if required:
+            message += self.applyRed("[*] ")
+        else:
+            message += "[ ] "
+
+        message += question + " "
+
+        if default is not None:
+            message += self.applyYellow("[" + default + "] ")
+
+        message += self.applyGreen("> ")
+        return message
+
+    def applyGreen(self, message: str) -> str:
+        return colorama.Fore.GREEN + message + colorama.Fore.RESET
+
+    def applyRed(self, message: str) -> str:
+        return colorama.Fore.RED + message + colorama.Fore.RESET
+
+    def applyInvertRed(self, message: str) -> str:
+        return colorama.Back.RED + message + colorama.Back.RESET
+
+    def applyYellow(self, message: str) -> str:
+        return colorama.Fore.YELLOW + message + colorama.Fore.RESET
+
+    def applyInvertYellow(self, message: str) -> str:
+        return (
             colorama.Back.YELLOW
             + colorama.Fore.BLACK
             + message
-            + colorama.Fore.RESET
             + colorama.Back.RESET
-            + "\n"
-        )
-
-    @staticmethod
-    def printWorking(message=None):
-        print(
-            colorama.Fore.YELLOW
-            + (message or _("Wait a minute..."))
             + colorama.Fore.RESET
         )
 
-    @staticmethod
-    def printSuccess(message=None):
-        print(
-            colorama.Fore.GREEN
-            + (message or _("Everything is done..."))
-            + colorama.Fore.RESET
-        )
+    def exitWithError(
+        self, error: str = "Error", message: str = None, exitCode: int = 1
+    ):
+        """
+        Terminate application with exit state
+        """
+        self.error(error, message)
+        self.db.close()
+        sys.exit(exitCode)
+
+    def exitWithSuccess(self, message: str = None):
+        """
+        Terminate application with success state
+        """
+        self.success(message)
+        self.db.close()
+        sys.exit()

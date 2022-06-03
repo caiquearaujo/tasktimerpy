@@ -1,7 +1,7 @@
 import gettext
 from pathlib import Path, PurePath
 from typing import List, Union
-from pypika import Query, Table, JoinType
+from pypika import Query, Table
 import sqlite3
 
 from .models.task import Task

@@ -10,11 +10,12 @@ _ = gettext.gettext
 
 
 class Commands:
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, terminal: Terminal) -> None:
         self.db = db
+        self.term = terminal
 
     def start(self):
-        Terminal.printTitle(_("Starting a timer"))
+        self.term.title(_("Starting a timer"))
 
         try:
             current_timer = self.db.timerActive()
@@ -22,63 +23,63 @@ class Commands:
             if current_timer is None:
                 current_timer = self.__unactiveTimer()
             else:
-                Terminal.printWorking(
+                self.term.notice(
                     _(
                         'A timer is already started, working on "{i}" task...'
                     ).format(i=current_timer.task().name())
                 )
-                Terminal.printWorking(
+                self.term.notice(
                     _("You must finish it before continue...")
                 )
-                Terminal.success(self.db)
+                self.term.exitWithSuccess()
 
             print()
-            Terminal.printWorking(
+            self.term.notice(
                 _('Timer started to "{i}"...').format(
                     i=current_timer.task().name()
                 )
             )
-            Terminal.success(self.db)
+            self.term.exitWithSuccess()
 
         except Exception as e:
-            Terminal.err(self.db, _("Exception"), str(e))
+            self.term.exitWithError(_("Exception"), str(e))
 
     def close(self):
-        Terminal.printTitle(_("Closing a timer"))
+        self.term.title(_("Closing a timer"))
 
         try:
             current_timer = self.db.timerActive()
 
             if current_timer is None:
-                Terminal.printWorking(
+                self.term.notice(
                     _("You must start a timer before continue...")
                 )
-                Terminal.success(self.db)
+                self.term.exitWithSuccess()
 
             self.db.timerClose(current_timer)
-            Terminal.printWorking(
+            self.term.notice(
                 _('Timer closed to "{i}"...').format(
                     i=current_timer.task().name()
                 )
             )
 
-            done = Terminal.askYN(
+            done = self.term.askYN(
                 _("Do you want mark task as done?"), "no"
             )
 
             if done:
                 self.db.taskDone(current_timer.task())
 
-            Terminal.success(self.db)
+            self.term.exitWithSuccess()
 
         except Exception as e:
-            Terminal.err(self.db, _("Exception"), e)
+            self.term.exitWithError(_("Exception"), e)
 
     def __unactiveTimer(self) -> Timer:
-        Terminal.printWorking(_("No active timer found..."))
+        self.term.notice(_("No active timer found..."))
 
         switcher = {
-            "q": lambda: Terminal.success(self.db),
+            "q": lambda: self.term.exitWithSuccess(),
             0: lambda: self.__create(),
             1: lambda: self.__load(),
         }
@@ -87,27 +88,27 @@ class Commands:
         timer = self.db.timerOpen(task)
 
         if timer is None:
-            Terminal.err(
-                self.db, _("Error"), _("Cannot open timer to task...")
+            self.term.exitWithError(
+                _("Error"), _("Cannot open timer to task...")
             )
 
         return timer
 
     def __create(self) -> Task:
-        Terminal.printTitle(_("Creating Task"))
+        self.term.title(_("Creating Task"))
         print()
 
-        project = Terminal.askInput(
+        project = self.term.askInput(
             _("Type the project name for task"),
         )
 
-        epic = Terminal.askInput(
+        epic = self.term.askInput(
             _("Type the epic name for task"), required=False
         )
-        story = Terminal.askInput(
+        story = self.term.askInput(
             _("Type the story name for task"), required=False
         )
-        name = Terminal.askInput(_("Type the task name"))
+        name = self.term.askInput(_("Type the task name"))
 
         e = Task(project, name).apply({"epic": epic, "story": story})
         return self.db.createTask(e)
@@ -118,7 +119,7 @@ class Commands:
         )
 
     def __trigger(self, name: str, switcher: dict):
-        option = Terminal.askOption(
+        option = self.term.askOption(
             _("What do you want to do?"),
             {
                 "q": _("Quit"),
@@ -130,35 +131,33 @@ class Commands:
         return switcher.get(option, switcher.get(0))()
 
     def __loadTemplate(self, data: Callable, singular: str, plural: str):
-        Terminal.printTitle(
-            _("Listing current active {x}").format(x=plural)
-        )
-        Terminal.printWorking(_("Finding {x}...").format(x=plural))
+        self.term.title(_("Listing current active {x}").format(x=plural))
+        self.term.notice(_("Finding {x}...").format(x=plural))
         print()
 
         datas = data()
 
         if datas is None or len(datas) == 0:
-            Terminal.printErr(
+            self.term.error(
                 _("Empty data"),
                 _("No {x} were found...").format(x=plural),
             )
 
-            create = Terminal.askYN(
+            create = self.term.askYN(
                 _("Do you want to create a new task?")
             )
 
             if create:
                 return self.__create()
 
-            Terminal.success(self.db)
+            self.term.exitWithSuccess()
 
         options = {}
 
         for t in datas:
             options[t.id()] = t.name()
 
-        option = Terminal.askOption(
+        option = self.term.askOption(
             _("What {x} do want to start right now?").format(x=singular),
             options,
         )

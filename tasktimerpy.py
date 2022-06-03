@@ -10,20 +10,21 @@ _ = gettext.gettext
 
 
 def main():
-    Terminal.printTitle(_("Task timer manager"))
-
     db = Database(".")
+    term = Terminal(db)
+
+    term.title(_("Task timer manager"))
+
     command = None
     argv = sys.argv[1:]
 
     if len(argv) == 0:
-        Terminal.err(
-            db,
+        term.exitWithError(
             _("Invalid arguments"),
             _("You must insert a command before continue..."),
         )
 
-    cd = Commands(db)
+    cd = Commands(db, term)
 
     command = argv[0]
     switcher = {
@@ -34,8 +35,7 @@ def main():
     func = switcher.get(command, False)
 
     if func == False:
-        Terminal.err(
-            db,
+        term.exitWithError(
             "Invalid command",
             'The command "{i}" was not found.'.format(i=command),
         )
