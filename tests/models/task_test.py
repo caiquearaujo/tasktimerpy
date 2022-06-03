@@ -15,6 +15,12 @@ def test_create_task():
     }
 
 
+def test_partial_task_creation():
+    t = Task("project-one", "Task One").apply(
+        {"epic": "epic-one", "story": "story-one"}
+    )
+
+
 def test_mark_task_as_done():
     t = Task("project-one", "Task One")
     t.markAsDone()
@@ -31,15 +37,7 @@ def test_getters_of_task():
     t = Task("project-one", "Task One")
     t.changeEpic("Epic One")
     t.changeStory("Story One")
-    assert t.toDict() == {
-        "id": None,
-        "project": "project-one",
-        "epic": "epic-one",
-        "story": "story-one",
-        "name": "Task One",
-        "done": 0,
-        "createdAt": t.createdAt(),
-    }
+    assert t.epic() == "epic-one" and t.story() == "story-one"
 
 
 def test_setters_of_task():

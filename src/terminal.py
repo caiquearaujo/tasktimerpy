@@ -31,14 +31,17 @@ class Terminal:
             try:
                 print()
 
-                option = int(
-                    input(
-                        _("[*] Choose an option")
-                        + colorama.Fore.GREEN
-                        + " > "
-                        + colorama.Fore.RESET
-                    )
+                option = input(
+                    _("[*] Choose an option")
+                    + colorama.Fore.GREEN
+                    + " > "
+                    + colorama.Fore.RESET
                 )
+
+                if option == "q":
+                    return option
+                else:
+                    option = int(option)
 
                 if options.get(option, None) is None:
                     option = -1
@@ -58,6 +61,9 @@ class Terminal:
         while True:
             message = question
 
+            if required:
+                message = "[*] " + message
+
             if default:
                 message += (
                     colorama.Fore.YELLOW
@@ -67,8 +73,12 @@ class Terminal:
                     + colorama.Fore.RESET
                 )
 
-            print(message)
-            response = input()
+            response = input(
+                message
+                + colorama.Fore.GREEN
+                + " > "
+                + colorama.Fore.RESET
+            )
 
             if max < 0:
                 max = len(response)
@@ -96,7 +106,7 @@ class Terminal:
                 if default != None:
                     return default
 
-                return ""
+                return response or ""
 
     @staticmethod
     def askInputAsInt(
@@ -225,6 +235,16 @@ class Terminal:
             + " "
             + (message or _("Something went wrong..."))
             + colorama.Fore.RESET
+        )
+
+    @staticmethod
+    def printTitle(message: str):
+        print(
+            colorama.Back.YELLOW
+            + colorama.Fore.BLACK
+            + message
+            + colorama.Fore.RESET
+            + colorama.Back.RESET
         )
 
     @staticmethod
