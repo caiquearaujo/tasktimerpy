@@ -30,6 +30,7 @@ def main():
     switcher = {
         "start": lambda: cd.start(),
         "close": lambda: cd.close(),
+        "stats": lambda: cd.stats(),
     }
 
     func = switcher.get(command, False)

@@ -1,3 +1,4 @@
+from datetime import datetime
 import gettext
 from typing import Callable
 
@@ -43,6 +44,57 @@ class Commands:
 
         except Exception as e:
             self.term.exitWithError(_("Exception"), str(e))
+
+    def stats(self):
+        self.term.notice(_("Stats of current timer"))
+
+        try:
+            current_timer = self.db.timerActive()
+
+            if current_timer is None:
+                self.term.notice(
+                    _("You must start a timer before continue...")
+                )
+                self.term.exitWithSuccess()
+
+            now = datetime.now()
+            start = datetime.fromtimestamp(current_timer.startsAt())
+            delta = now - start
+
+            days = delta.days
+            total_seconds = delta.seconds
+            mins, secs = divmod(total_seconds, 60)
+            hours, mins = divmod(mins, 60)
+
+            msg = _(
+                "{d} day(s) {h} hour(s) {m} minute(s) {s} second(s)"
+            ).format(d=days, h=hours, m=mins, s=secs)
+
+            print(
+                self.term.applyGreen("Project: ")
+                + current_timer.project()
+            )
+
+            print(
+                self.term.applyGreen("Epic: ")
+                + (current_timer.epic() or "--")
+            )
+
+            print(
+                self.term.applyGreen("Story: ")
+                + (current_timer.story() or "--")
+            )
+
+            print(
+                self.term.applyGreen("Task: ")
+                + current_timer.task().name()
+            )
+
+            print(msg)
+            self.term.exitWithSuccess(" ")
+
+        except Exception as e:
+            self.term.exitWithError(_("Exception"), e)
 
     def close(self):
         self.term.title(_("Closing a timer"))
