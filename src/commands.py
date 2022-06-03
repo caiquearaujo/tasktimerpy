@@ -14,7 +14,7 @@ class Commands:
         self.db = db
 
     def start(self):
-        Terminal.printTitle(_("Task timer manager"))
+        Terminal.printTitle(_("Starting a timer"))
 
         try:
             current_timer = self.db.timerActive()
@@ -44,6 +44,8 @@ class Commands:
             Terminal.err(self.db, _("Exception"), str(e))
 
     def close(self):
+        Terminal.printTitle(_("Closing a timer"))
+
         try:
             current_timer = self.db.timerActive()
 

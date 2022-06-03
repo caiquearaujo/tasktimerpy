@@ -245,6 +245,7 @@ class Terminal:
             + message
             + colorama.Fore.RESET
             + colorama.Back.RESET
+            + "\n"
         )
 
     @staticmethod
