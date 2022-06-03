@@ -4,9 +4,6 @@ from typing import List, Union
 from pypika import Query, Table, JoinType
 import sqlite3
 
-from .models.epic import Epic
-from .models.project import Project
-from .models.story import Story
 from .models.task import Task
 from .models.timer import Timer
 
@@ -41,82 +38,22 @@ class Database:
         if self.conn != None:
             self.conn.close()
 
-    def createProject(self, r: Project) -> Union[Project, None]:
-        t = Table("projects")
-        q = (
-            Query.into(t)
-            .columns(t.name, t.created_at)
-            .insert(r.name(), r.createdAt())
-        )
-        i = self.__commit(str(q))
-
-        if i is None:
-            return None
-
-        return self.getProject(i)
-
-    def createEpic(self, r: Epic) -> Union[Epic, None]:
-        if r.project() is None or r.project().hasId() == False:
-            raise sqlite3.Error(
-                Exception("You must create project first")
-            )
-
-        t = Table("epics")
-        q = (
-            Query.into(t)
-            .columns(t.project_id, t.name, t.created_at)
-            .insert(r.project().id(), r.name(), r.createdAt())
-        )
-        i = self.__commit(str(q))
-
-        if i is None:
-            return None
-
-        return self.getEpic(i)
-
-    def createStory(self, r: Story) -> Union[Story, None]:
-        if r.epic() is None or r.epic().hasId() == False:
-            raise sqlite3.Error(Exception("You must create epic first"))
-
-        t = Table("stories")
-        q = (
-            Query.into(t)
-            .columns(t.project_id, t.epic_id, t.name, t.created_at)
-            .insert(
-                r.project().id(),
-                r.epic().id(),
-                r.name(),
-                r.createdAt(),
-            )
-        )
-        i = self.__commit(str(q))
-
-        if i is None:
-            return None
-
-        return self.getStory(i)
-
     def createTask(self, r: Task) -> Union[Task, None]:
-        if r.story() is None or r.story().hasId() == False:
-            raise sqlite3.Error(
-                Exception(_("You must create story first"))
-            )
-
         t = Table("tasks")
         q = (
             Query.into(t)
             .columns(
-                t.project_id,
-                t.epic_id,
-                t.story_id,
+                t.project,
+                t.epic,
+                t.story,
                 t.name,
                 t.created_at,
             )
             .insert(
-                r.project().id(),
-                r.epic().id(),
-                r.story().id(),
-                r.name(),
+                (r.project() or "NULL"),
+                (r.epic() or "NULL"),
+                (r.story() or "NULL"),
+                (r.name() or "NULL"),
                 r.createdAt(),
             )
         )
@@ -127,41 +64,6 @@ class Database:
 
         return self.getTask(i)
 
-    def getProject(self, id: int) -> Union[Project, None]:
-        t = Table("projects")
-        q = Query.from_(t).select("*").where(t.project_id == id)
-        r = self.__one(str(q))
-
-        if r is None:
-            return None
-
-        o = Project(r)
-        return o
-
-    def getEpic(self, id: int) -> Union[Epic, None]:
-        t = Table("epics")
-        q = Query.from_(t).select("*").where(t.epic_id == id)
-        r = self.__one(str(q))
-
-        if r is None:
-            return None
-
-        o = Epic(r)
-        o.assignTo(self.getProject(r.get("project_id", -1)))
-        return o
-
-    def getStory(self, id: int) -> Union[Story, None]:
-        t = Table("stories")
-        q = Query.from_(t).select("*").where(t.story_id == id)
-        r = self.__one(str(q))
-
-        if r is None:
-            return None
-
-        o = Story(r)
-        o.assignTo(self.getEpic(r.get("epic_id", -1)))
-        return o
-
     def getTask(self, id: int) -> Union[Task, None]:
         t = Table("tasks")
         q = Query.from_(t).select("*").where(t.task_id == id)
@@ -170,94 +72,7 @@ class Database:
         if r is None:
             return None
 
-        o = Task(r)
-        o.assignTo(self.getStory(r.get("story_id", -1)))
-        return o
-
-    def getUndoneProjects(self) -> Union[List[Project], None]:
-        t = Table("projects")
-        i = Table("tasks")
-        q = (
-            Query.from_(t)
-            .join(i, JoinType.left)
-            .on(t.project_id == i.project_id)
-            .select(t.project_id, t.name, t.created_at)
-            .where((i.done == 0) | (i.done.isnull()))
-            .orderby(i.created_at)
-            .groupby(t.project_id)
-            .limit(15)
-        )
-        r = self.__all(str(q))
-
-        if r is None:
-            return None
-
-        projects = []
-
-        for i in r:
-            projects.append(Project(i))
-
-        return projects
-
-    def getUndoneEpics(self, project: Project) -> Union[List[Epic], None]:
-        t = Table("epics")
-        i = Table("tasks")
-        q = (
-            Query.from_(t)
-            .join(i, JoinType.left)
-            .on(t.epic_id == i.epic_id)
-            .select(t.epic_id, t.project_id, t.name, t.created_at)
-            .where(
-                (i.project_id == project.id()) | (i.project_id.isnull())
-            )
-            .where((i.done == 0) | (i.done.isnull()))
-            .orderby(i.created_at)
-            .groupby(t.epic_id)
-            .limit(15)
-        )
-        r = self.__all(str(q))
-
-        if r is None:
-            return None
-
-        epics = []
-
-        for i in r:
-            o = Epic(i)
-            o.assignTo(self.getProject(i.get("project_id", -1)))
-            epics.append(o)
-
-        return epics
-
-    def getUndoneStories(self, epic: Epic) -> Union[List[Story], None]:
-        t = Table("stories")
-        i = Table("tasks")
-        q = (
-            Query.from_(t)
-            .join(i, JoinType.left)
-            .on(t.story_id == i.story_id)
-            .select(
-                t.story_id, t.project_id, t.epic_id, t.name, t.created_at
-            )
-            .where((i.epic_id == epic.id()) | (i.epic_id.isnull()))
-            .where((i.done == 0) | (i.done.isnull()))
-            .orderby(i.created_at)
-            .groupby(t.story_id)
-            .limit(15)
-        )
-        r = self.__all(str(q))
-
-        if r is None:
-            return None
-
-        stories = []
-
-        for i in r:
-            o = Story(i)
-            o.assignTo(self.getEpic(i.get("epic_id", -1)))
-            stories.append(o)
-
-        return stories
+        return Task(r)
 
     def getUndoneTasks(self) -> Union[List[Task], None]:
         t = Table("tasks")
@@ -276,9 +91,7 @@ class Database:
         tasks = []
 
         for i in r:
-            o = Task(i)
-            o.assignTo(self.getStory(i.get("story_id", -1)))
-            tasks.append(o)
+            tasks.append(Task(i))
 
         return tasks
 
@@ -326,17 +139,11 @@ class Database:
         q = (
             Query.into(t)
             .columns(
-                t.project_id,
-                t.epic_id,
-                t.story_id,
                 t.task_id,
                 t.starts_at,
                 t.created_at,
             )
             .insert(
-                x.project().id(),
-                x.epic().id(),
-                x.story().id(),
                 x.task().id(),
                 x.startsAt(),
                 x.createdAt(),
@@ -430,67 +237,28 @@ class Database:
         """
         Create tables if them does not exist.
         """
-        projects = """
-		CREATE TABLE IF NOT EXISTS projects (
-			project_id integer PRIMARY KEY,
-			name text NOT NULL,
-			created_at integer NOT NULL
-		);"""
-
-        epics = """
-		CREATE TABLE IF NOT EXISTS epics (
-			epic_id integer PRIMARY KEY,
-			project_id integer NOT NULL,
-			name text NOT NULL,
-			created_at integer NOT NULL,
-			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE
-		);"""
-
-        stories = """
-		CREATE TABLE IF NOT EXISTS stories (
-			story_id integer PRIMARY KEY,
-			project_id integer NOT NULL,
-			epic_id integer NOT NULL,
-			name text NOT NULL,
-			created_at integer NOT NULL,
-			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
-			FOREIGN KEY (epic_id) REFERENCES epics (epic_id) ON DELETE CASCADE
-		);"""
-
         tasks = """
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id integer PRIMARY KEY,
-			project_id integer NOT NULL,
-			epic_id integer NOT NULL,
-			story_id integer NOT NULL,
+			project text NOT NULL,
+			epic text NOT NULL,
+			story text NOT NULL,
 			done integer NOT NULL DEFAULT 0,
 			name text NOT NULL,
 			created_at integer NOT NULL,
-			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
-			FOREIGN KEY (epic_id) REFERENCES epics (epic_id) ON DELETE CASCADE,
-			FOREIGN KEY (story_id) REFERENCES stories (story_id) ON DELETE CASCADE
 		);"""
 
         timers = """
 		CREATE TABLE IF NOT EXISTS timers (
 			timer_id integer PRIMARY KEY,
-			project_id integer NOT NULL,
-			epic_id integer NOT NULL,
-			story_id integer NOT NULL,
 			task_id integer NOT NULL,
 			starts_at integer NOT NULL,
 			ends_at integer NULL,
 			created_at integer NOT NULL,
-			FOREIGN KEY (project_id) REFERENCES projects (project_id) ON DELETE CASCADE,
-			FOREIGN KEY (epic_id) REFERENCES epics (epic_id) ON DELETE CASCADE,
-			FOREIGN KEY (story_id) REFERENCES stories (story_id) ON DELETE CASCADE,
 			FOREIGN KEY (task_id) REFERENCES tasks (task_id) ON DELETE CASCADE
 		);"""
 
         cursor = conn.cursor()
-        cursor.execute(projects)
-        cursor.execute(epics)
-        cursor.execute(stories)
         cursor.execute(tasks)
         cursor.execute(timers)
 

@@ -2,7 +2,7 @@ import colorama
 import sys
 import gettext
 
-from database import Database
+from .database import Database
 
 _ = gettext.gettext
 
@@ -14,10 +14,10 @@ class Terminal:
         print()
 
         while option < 0:
-            print("== " + title)
+            Terminal.printWorking(title)
             print()
 
-            for key in options.keys:
+            for key, value in options.items():
                 print(
                     colorama.Fore.YELLOW,
                     "[",
@@ -25,7 +25,7 @@ class Terminal:
                     "]",
                     colorama.Fore.RESET,
                     "\t",
-                    options[key],
+                    value,
                 )
 
             try:
@@ -40,8 +40,11 @@ class Terminal:
                     )
                 )
 
-                if option not in options:
+                if options.get(option, None) is None:
                     option = -1
+                    continue
+
+                return option
             except:
                 option = -1
 
@@ -198,7 +201,7 @@ class Terminal:
     @staticmethod
     def err(db: Database, err="Error", message=None):
         """Exibe uma mensagem de error e encerra o programa."""
-        Terminal.printErr(err, (message or _("Something went wrong...")))
+        Terminal.printErr(err, message)
         db.close()
         sys.exit(2)
 
@@ -212,7 +215,7 @@ class Terminal:
         sys.exit()
 
     @staticmethod
-    def printErr(err="Erro", message=None):
+    def printErr(err="Error", message=None):
         print(
             colorama.Back.RED
             + err

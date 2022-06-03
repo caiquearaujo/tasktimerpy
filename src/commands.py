@@ -1,14 +1,10 @@
 import gettext
 from typing import Callable
 
-from database import Database
-from models.epic import Epic
-from models.project import Project
-from models.record import Record
-from models.story import Story
-from models.task import Task
-from models.timer import Timer
-from terminal import Terminal
+from .database import Database
+from .models.task import Task
+from .models.timer import Timer
+from .terminal import Terminal
 
 _ = gettext.gettext
 
@@ -42,7 +38,7 @@ class Commands:
             Terminal.success(self.db)
 
         except Exception as e:
-            Terminal.err(self.db, _("Exception"), e)
+            Terminal.err(self.db, _("Exception"), str(e))
 
     def close(self):
         try:
@@ -90,27 +86,7 @@ class Commands:
         return timer
 
     def __create(self) -> Task:
-        switcher = {
-            0: lambda: self.__createProject(),
-            1: lambda: self.__loadProjects(),
-        }
-
-        project = self.__trigger("project", switcher)
-
-        switcher = {
-            0: lambda: self.__createEpic(project),
-            1: lambda: self.__loadEpics(project),
-        }
-
-        epic = self.__trigger("epic", switcher)
-
-        switcher = {
-            0: lambda: self.__createStory(epic),
-            1: lambda: self.__loadStories(epic),
-        }
-
-        story = self.__trigger("story", switcher)
-        return self.__createTask(story)
+        return self.__createTask()
 
     def __trigger(self, name: str, switcher: dict):
         option = Terminal.askOption(
@@ -121,73 +97,9 @@ class Commands:
             },
         )
 
-        return switcher.get(option, switcher[0])()
+        return switcher.get(option, switcher.get(0))()
 
-    def __createProject(self) -> Project:
-        Terminal.printWorking(_("Starting to create a new project"))
-        print()
-
-        name = Terminal.askInput(
-            _("What is the project name?"),
-        )
-
-        return self.db.createProject(Project({"name": name}))
-
-    def __loadProjects(self) -> Project:
-        return self.__loadTemplate(
-            self.db.getUndoneProjects, _("project"), _("projects")
-        )
-
-    def __createEpic(self, project: Project) -> Epic:
-        Terminal.printWorking(
-            _("Starting to create a new epic to project id {i}").format(
-                i=project.id()
-            )
-        )
-        print()
-
-        name = Terminal.askInput(
-            _("What is the epic name?"),
-        )
-
-        e = Epic({"name": name})
-        e.assignTo(project)
-        return self.db.createEpic(e)
-
-    def __loadEpics(self, project: Project) -> Epic:
-        return self.__loadTemplate(
-            lambda: self.db.getUndoneEpics(project), _("epic"), _("epics")
-        )
-
-    def __createStory(self, epic: Epic) -> Story:
-        Terminal.printWorking(
-            _("Starting to create a new story to epic id {i}").format(
-                i=epic.id()
-            )
-        )
-        print()
-
-        name = Terminal.askInput(
-            _("What is the story name?"),
-        )
-
-        e = Story({"name": name})
-        e.assignTo(epic)
-        return self.db.createStory(e)
-
-    def __loadStories(self, epic: Epic) -> Story:
-        return self.__loadTemplate(
-            lambda: self.db.getUndoneStories(epic),
-            _("story"),
-            _("stories"),
-        )
-
-    def __createTask(self, story: Story) -> Task:
-        Terminal.printWorking(
-            _("Starting to create a new task to story id {i}").format(
-                i=story.id()
-            )
-        )
+    def __createTask(self) -> Task:
         print()
 
         name = Terminal.askInput(
@@ -195,7 +107,6 @@ class Commands:
         )
 
         e = Task({"name": name})
-        e.assignTo(story)
         return self.db.createTask(e)
 
     def __load(self) -> Task:
@@ -209,7 +120,7 @@ class Commands:
 
         datas = data()
 
-        if datas is None:
+        if datas is None or len(data) == 0:
             Terminal.printErr(
                 _("Empty data"),
                 _("No {x} were found...").format(x=plural),
@@ -222,7 +133,7 @@ class Commands:
             options[t.id()] = t.name()
 
         option = Terminal.askOption(
-            _("What {x} do want to start right now?").format(x=plural),
+            _("What {x} do want to start right now?").format(x=singular),
             options,
         )
 
