@@ -15,6 +15,7 @@ class Timer(Record):
         self.__starts_at = record.get("starts_at", self.__starts_at)
         self.__ends_at = record.get("ends_at", self.__ends_at)
         super().apply(record)
+        return self
 
     def assignTo(self, task: Task):
         self.__task = task

@@ -25,6 +25,7 @@ class Task(Record):
             self.changeStory(story)
 
         super().apply(record)
+        return self
 
     def markAsDone(self):
         self.__done = 1

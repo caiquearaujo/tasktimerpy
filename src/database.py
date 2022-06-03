@@ -50,10 +50,10 @@ class Database:
                 t.created_at,
             )
             .insert(
-                (r.project() or "NULL"),
-                (r.epic() or "NULL"),
-                (r.story() or "NULL"),
-                (r.name() or "NULL"),
+                r.project(),
+                r.epic(),
+                r.story(),
+                r.name(),
                 r.createdAt(),
             )
         )
@@ -72,7 +72,7 @@ class Database:
         if r is None:
             return None
 
-        return Task(r)
+        return Task(r.get("project"), r.get("name")).apply(r)
 
     def getUndoneTasks(self) -> Union[List[Task], None]:
         t = Table("tasks")
@@ -91,7 +91,7 @@ class Database:
         tasks = []
 
         for i in r:
-            tasks.append(Task(i))
+            tasks.append(Task(i.get("project"), i.get("name")).apply(i))
 
         return tasks
 
@@ -103,7 +103,7 @@ class Database:
         if r is None:
             return None
 
-        o = Timer(r)
+        o = Timer().apply(r)
         o.assignTo(self.getTask(r.get("task_id", -1)))
         return o
 
@@ -116,7 +116,7 @@ class Database:
         if r is None:
             raise sqlite3.Error(Exception("Task does not exists"))
 
-        r.done()
+        r.markAsDone()
 
         t = Table("tasks")
         q = Query.update(t).set(t.done, 1).where(t.task_id == r.id())
@@ -184,7 +184,7 @@ class Database:
         if r is None:
             return None
 
-        o = Timer(r)
+        o = Timer().apply(r)
         o.assignTo(self.getTask(r.get("task_id", -1)))
         return o
 
@@ -242,11 +242,11 @@ class Database:
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id integer PRIMARY KEY,
 			project text NOT NULL,
-			epic text NOT NULL,
-			story text NOT NULL,
+			epic text NULL,
+			story text NULL,
 			done integer NOT NULL DEFAULT 0,
 			name text NOT NULL,
-			created_at integer NOT NULL,
+			created_at integer NOT NULL
 		);"""
 
         timers = """
